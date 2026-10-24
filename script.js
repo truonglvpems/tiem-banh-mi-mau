@@ -122,7 +122,8 @@ document.addEventListener("DOMContentLoaded", function () {
         return `${nam}-${thang}-${ngay}`;
     }
 
-    // Kiểm tra dữ liệu trước khi gửi.
+    const SO_ZALO = ""; // Điền số Zalo của tiệm, chỉ gồm mã quốc gia và số điện thoại, không có dấu +
+
     form.addEventListener("submit", function (event) {
         event.preventDefault();
 
@@ -130,7 +131,6 @@ document.addEventListener("DOMContentLoaded", function () {
         thongBao.style.color = "red";
 
         const donHang = tinhTongDonHang();
-
         const ten = hoTen.value.trim();
         const dienThoai = soDienThoai.value.trim();
         const ngay = ngayNhan.value;
@@ -166,10 +166,111 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        // Chỉ xác nhận trên giao diện, không gửi dữ liệu đi đâu.
-        thongBao.textContent =
-            "Đã ghi nhận đơn (trang mẫu – đơn chưa được gửi đi)";
+        // Lấy nguồn khách từ URL, không có thì ghi "không rõ".
+        const thamSo = new URLSearchParams(window.location.search);
+        const nguon = (thamSo.get("nguon") || "").trim() || "không rõ";
+
+        // Lấy ghi chú nếu form có trường ghi chú.
+        const truongGhiChu = document.querySelector(
+            '[name="ghiChu"], [name="ghi-chu"], #ghiChu, #ghi-chu'
+        );
+        const ghiChu = truongGhiChu
+            ? truongGhiChu.value.trim()
+            : "";
+
+        // ĐỌC LƯU Ý Ở DƯỚI: cần khớp tên thuộc tính với tinhTongDonHang().
+        const tongTienSauGiam = donHang.tongTien;
+
+        const dinhDangTien = function (soTien) {
+            return Number(soTien).toLocaleString("vi-VN") + " VNĐ";
+        };
+
+        const noiDungDon = [
+            "ĐƠN ĐẶT BÁNH MÌ",
+            "Họ tên: " + ten,
+            "Số điện thoại: " + dienThoai,
+            "Bánh mì thịt: " + banhMiThit.value + " suất",
+            "Bánh mì chảo: " + banhMiChao.value + " suất",
+            "Bánh mì que: " + banhMiQue.value + " suất",
+            "Tổng số suất: " + donHang.tongSuat + " suất",
+            "Tổng tiền sau giảm: " +
+                (Number.isFinite(Number(tongTienSauGiam))
+                    ? dinhDangTien(tongTienSauGiam)
+                    : "CHƯA XÁC ĐỊNH - cần kiểm tra tên thuộc tính"),
+            "Ngày nhận: " + ngay,
+            "Địa chỉ giao hàng: " + diaChiGiaoHang,
+            "Ghi chú: " + (ghiChu || "Không có"),
+            "Nguồn khách: " + nguon
+        ].join("\n");
+
+        thongBao.textContent = "Đơn hàng đã được soạn. Chưa gửi đi.";
         thongBao.style.color = "green";
+
+        // Tạo vùng hiển thị đơn và nút thao tác ngay bên dưới thông báo.
+        let khungDon = document.getElementById("khungDonHang");
+        if (!khungDon) {
+            khungDon = document.createElement("div");
+            khungDon.id = "khungDonHang";
+            khungDon.style.marginTop = "12px";
+            khungDon.style.padding = "12px";
+            khungDon.style.border = "1px solid #ccc";
+            khungDon.style.borderRadius = "8px";
+
+            const noiDung = document.createElement("pre");
+            noiDung.id = "noiDungDonHang";
+            noiDung.style.whiteSpace = "pre-wrap";
+            noiDung.style.overflowWrap = "anywhere";
+            noiDung.style.fontFamily = "inherit";
+
+            const nutZalo = document.createElement("button");
+            nutZalo.type = "button";
+            nutZalo.textContent = "Sao chép đơn và mở Zalo";
+
+            const ketQuaSaoChep = document.createElement("p");
+            ketQuaSaoChep.id = "ketQuaSaoChep";
+            ketQuaSaoChep.setAttribute("role", "status");
+
+            khungDon.append(noiDung, nutZalo, ketQuaSaoChep);
+
+            // Hiển thị ngay sau form, gần nút gửi.
+            form.insertAdjacentElement("afterend", khungDon);
+
+            nutZalo.addEventListener("click", async function () {
+                const noiDungHienTai =
+                    document.getElementById("noiDungDonHang").textContent;
+                const ketQua = document.getElementById("ketQuaSaoChep");
+
+                try {
+                    await navigator.clipboard.writeText(noiDungHienTai);
+                    ketQua.textContent = "Đã sao chép nội dung đơn.";
+                } catch (error) {
+                    ketQua.textContent =
+                        "Không sao chép tự động được. Hãy chọn và sao chép nội dung đơn bên trên.";
+                    return;
+                }
+
+                if (!SO_ZALO.trim()) {
+                    ketQua.textContent += " Tiệm chưa điền số Zalo.";
+                    return;
+                }
+
+                // Chỉ mở Zalo của tiệm; không đưa thông tin khách vào URL.
+                const soZalo = SO_ZALO.replace(/\D/g, "");
+                if (!soZalo) {
+                    ketQua.textContent += " Số Zalo chưa hợp lệ.";
+                    return;
+                }
+
+                window.open(
+                    "https://zalo.me/" + soZalo,
+                    "_blank",
+                    "noopener,noreferrer"
+                );
+            });
+        }
+
+        document.getElementById("noiDungDonHang").textContent = noiDungDon;
+        document.getElementById("ketQuaSaoChep").textContent = "";
     });
 
     // Hiển thị tổng tiền ban đầu.
